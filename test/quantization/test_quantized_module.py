@@ -363,6 +363,7 @@ class TestStaticQuantizedModule(QuantizationTestCase):
            groups=st.integers(1, 4),
            kernel=st.integers(1, 7),
            stride=st.integers(1, 2),
+           pad_mode=st.sampled_from(['zeros', 'reflect']),
            pad=st.integers(0, 2),
            dilation=st.integers(1, 2),
            X_scale=st.floats(1.2, 1.6),
@@ -377,7 +378,7 @@ class TestStaticQuantizedModule(QuantizationTestCase):
     @override_qengines
     def test_conv1d_api(
         self, batch_size, in_channels_per_group, length, out_channels_per_group,
-        groups, kernel, stride, pad, dilation,
+        groups, kernel, stride, pad_mode, pad, dilation,
         X_scale, X_zero_point, W_scale, W_zero_point, Y_scale, Y_zero_point,
         use_bias, use_fused, use_channelwise
     ):
@@ -395,16 +396,16 @@ class TestStaticQuantizedModule(QuantizationTestCase):
             module_name = "QuantizedConvReLU1d"
             qconv_module = nnq_fused.ConvReLU1d(
                 in_channels, out_channels, kernel, stride, pad,
-                dilation, groups, use_bias, padding_mode="zeros")
+                dilation, groups, use_bias, padding_mode=pad_mode)
         else:
             module_name = "QuantizedConv1d"
             qconv_module = nnq.Conv1d(
                 in_channels, out_channels, kernel, stride, pad,
-                dilation, groups, use_bias, padding_mode="zeros")
+                dilation, groups, use_bias, padding_mode=pad_mode)
 
         conv_module = nn.Conv1d(
             in_channels, out_channels, kernel, stride, pad,
-            dilation, groups, use_bias, padding_mode="zeros")
+            dilation, groups, use_bias, padding_mode=pad_mode)
         if use_fused:
             relu_module = nn.ReLU()
             conv_module = nni.ConvReLU1d(conv_module, relu_module)
@@ -429,6 +430,7 @@ class TestStaticQuantizedModule(QuantizationTestCase):
            stride_w=st.integers(1, 2),
            pad_h=st.integers(0, 2),
            pad_w=st.integers(0, 2),
+           pad_mode=st.sampled_from(['zeros', 'reflect']),
            dilation=st.integers(1, 2),
            X_scale=st.floats(1.2, 1.6),
            X_zero_point=st.integers(0, 4),
@@ -442,9 +444,9 @@ class TestStaticQuantizedModule(QuantizationTestCase):
     @override_qengines
     def test_conv2d_api(
         self, batch_size, in_channels_per_group, H, W, out_channels_per_group,
-        groups, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, dilation,
-        X_scale, X_zero_point, W_scale, W_zero_point, Y_scale, Y_zero_point,
-        use_bias, use_fused, use_channelwise
+        groups, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, pad_mode,
+        dilation, X_scale, X_zero_point, W_scale, W_zero_point, Y_scale,
+        Y_zero_point, use_bias, use_fused, use_channelwise
     ):
         # Tests the correctness of the conv2d module.
         in_channels = in_channels_per_group * groups
@@ -458,16 +460,16 @@ class TestStaticQuantizedModule(QuantizationTestCase):
             module_name = "QuantizedConvReLU2d"
             qconv_module = nnq_fused.ConvReLU2d(
                 in_channels, out_channels, kernel_size, stride, padding,
-                dilation, groups, use_bias, padding_mode="zeros")
+                dilation, groups, use_bias, padding_mode=pad_mode)
         else:
             module_name = "QuantizedConv2d"
             qconv_module = nnq.Conv2d(
                 in_channels, out_channels, kernel_size, stride, padding,
-                dilation, groups, use_bias, padding_mode="zeros")
+                dilation, groups, use_bias, padding_mode=pad_mode)
 
         conv_module = nn.Conv2d(
             in_channels, out_channels, kernel_size, stride, padding,
-            dilation, groups, use_bias, padding_mode="zeros")
+            dilation, groups, use_bias, padding_mode=pad_mode)
         if use_fused:
             relu_module = nn.ReLU()
             conv_module = nni.ConvReLU2d(conv_module, relu_module)
@@ -497,6 +499,7 @@ class TestStaticQuantizedModule(QuantizationTestCase):
            pad_d=st.integers(0, 1),
            pad_h=st.integers(0, 1),
            pad_w=st.integers(0, 1),
+           pad_mode=st.sampled_from(['zeros', 'reflect']),
            dilation=st.integers(1, 2),
            X_scale=st.floats(1.2, 1.6),
            X_zero_point=st.integers(0, 4),
@@ -510,9 +513,9 @@ class TestStaticQuantizedModule(QuantizationTestCase):
     def test_conv3d_api(
         self, batch_size, in_channels_per_group, D, H, W,
         out_channels_per_group, groups, kernel_d, kernel_h, kernel_w,
-        stride_d, stride_h, stride_w, pad_d, pad_h, pad_w, dilation, X_scale,
-        X_zero_point, W_scale, W_zero_point, Y_scale, Y_zero_point, use_bias,
-        use_channelwise, use_fused,
+        stride_d, stride_h, stride_w, pad_d, pad_h, pad_w, pad_mode, dilation,
+        X_scale, X_zero_point, W_scale, W_zero_point, Y_scale, Y_zero_point,
+        use_bias, use_channelwise, use_fused,
     ):
         # Tests the correctness of the conv3d module.
         in_channels = in_channels_per_group * groups
@@ -527,16 +530,16 @@ class TestStaticQuantizedModule(QuantizationTestCase):
                 module_name = "QuantizedConvReLU3d"
                 qconv_module = nnq_fused.ConvReLU3d(
                     in_channels, out_channels, kernel_size, stride, padding,
-                    dilation, groups, use_bias, padding_mode="zeros")
+                    dilation, groups, use_bias, padding_mode=pad_mode)
             else:
                 module_name = "QuantizedConv3d"
                 qconv_module = nnq.Conv3d(
                     in_channels, out_channels, kernel_size, stride, padding,
-                    dilation, groups, use_bias, padding_mode="zeros")
+                    dilation, groups, use_bias, padding_mode=pad_mode)
 
             conv_module = nn.Conv3d(
                 in_channels, out_channels, kernel_size, stride, padding,
-                dilation, groups, use_bias, padding_mode="zeros")
+                dilation, groups, use_bias, padding_mode=pad_mode)
             if use_fused:
                 relu_module = nn.ReLU()
                 conv_module = nni.ConvReLU3d(conv_module, relu_module)
