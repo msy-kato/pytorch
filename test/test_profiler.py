@@ -12,7 +12,9 @@ from torch.testing._internal.common_cuda import TEST_MULTIGPU
 from torch.testing._internal.common_utils import (
     TestCase, run_tests, TEST_WITH_ASAN, IS_WINDOWS, TemporaryFileName, TemporaryDirectoryName)
 from torch.autograd.profiler import profile as _profile
-from torch.profiler import profile, kineto_available, DeviceType, ProfilerActivity
+from torch.profiler import (
+    kineto_available, profile, record_function, DeviceType, ProfilerActivity
+)
 
 try:
     import psutil
@@ -162,6 +164,129 @@ class TestProfiler(TestCase):
         self.assertTrue(found_gemm_0)
         self.assertTrue(found_gemm_1)
         self.assertTrue(found_cuda)
+
+    def test_memory_profiler(self):
+        def run_profiler(tensor_creation_fn, metric):
+            # collecting allocs / deallocs
+            with _profile(profile_memory=True, record_shapes=True, use_kineto=kineto_available()) as prof:
+                x = None
+                with record_function("test_user_scope_alloc"):
+                    x = tensor_creation_fn()
+                with record_function("test_user_scope_dealloc"):
+                    del x
+            stats = prof.key_averages(group_by_input_shape=True)
+            print(stats.table(sort_by=metric))
+            return stats
+
+        def check_metrics(stats, metric, allocs=None, deallocs=None):
+            stat_metrics = {}
+            for stat in stats:
+                stat_metrics[stat.key] = getattr(stat, metric)
+            if allocs is not None:
+                for alloc_fn in allocs:
+                    self.assertTrue(alloc_fn in stat_metrics)
+                    self.assertTrue(stat_metrics[alloc_fn] > 0)
+            if deallocs is not None:
+                for dealloc_fn in deallocs:
+                    self.assertTrue(dealloc_fn in stat_metrics)
+                    self.assertTrue(stat_metrics[dealloc_fn] < 0)
+
+        def create_cpu_tensor():
+            return torch.rand(10, 10)
+
+        def create_cuda_tensor():
+            return torch.rand(10, 10).cuda()
+
+        def create_mkldnn_tensor():
+            return torch.rand(10, 10, dtype=torch.float32).to_mkldnn()
+
+        print("Running CPU test")
+        stats = run_profiler(create_cpu_tensor, "cpu_memory_usage")
+        check_metrics(
+            stats,
+            "cpu_memory_usage",
+            allocs=[
+                "aten::empty",
+                "aten::rand",
+                "test_user_scope_alloc",
+            ],
+            deallocs=[
+                "test_user_scope_dealloc",
+            ]
+        )
+
+        if torch.cuda.is_available():
+            create_cuda_tensor()
+            print("Running CUDA test")
+            stats = run_profiler(create_cuda_tensor, "cuda_memory_usage")
+            check_metrics(
+                stats,
+                "cuda_memory_usage",
+                allocs=[
+                    "test_user_scope_alloc",
+                    "aten::to",
+                    "aten::empty_strided",
+                ],
+                deallocs=[
+                    "test_user_scope_dealloc",
+                ]
+            )
+            check_metrics(
+                stats,
+                "cpu_memory_usage",
+                allocs=[
+                    "aten::rand",
+                    "aten::empty",
+                ]
+            )
+
+        if torch._C.has_mkldnn:
+            create_mkldnn_tensor()
+            print("Running MKLDNN test")
+            stats = run_profiler(create_mkldnn_tensor, "cpu_memory_usage")
+            check_metrics(
+                stats,
+                "cpu_memory_usage",
+                allocs=[
+                    "test_user_scope_alloc",
+                    "aten::rand",
+                    "aten::empty",
+                    "aten::to_mkldnn",
+                ],
+                deallocs=[
+                    "test_user_scope_dealloc",
+                ]
+            )
+
+        # check top-level memory events
+        with _profile(profile_memory=True, use_kineto=kineto_available()) as prof:
+            x = torch.rand(10, 10)
+            del x
+            if torch.cuda.is_available():
+                y = torch.rand(10, 10).cuda()
+                del y
+            gc.collect()
+        stats = prof.key_averages(group_by_input_shape=True)
+        print(stats.table(sort_by="cpu_memory_usage", row_limit=-1))
+        check_metrics(
+            stats,
+            "cpu_memory_usage",
+            allocs=[
+                "aten::rand",
+                "aten::empty"
+            ],
+            deallocs=[
+                "[memory]"
+            ]
+        )
+        if torch.cuda.is_available():
+            check_metrics(
+                stats,
+                "cuda_memory_usage",
+                deallocs=[
+                    "[memory]"
+                ]
+            )
 
     def test_high_level_trace(self):
         """Checks that python side high level events are recorded.
