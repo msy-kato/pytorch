@@ -1,13 +1,14 @@
 #include <ATen/ATen.h>
 #include <ATen/Config.h>
 #include <ATen/NativeFunctions.h>
+#include <ATen/native/mkldnn/Copy.h>
 
 #if !AT_MKLDNN_ENABLED()
 
 namespace at {
 namespace native {
 
-Tensor& copy_mkldnn_(Tensor& self, const Tensor& src, bool non_blocking) {
+Tensor& mkldnn_copy_(Tensor& self, const Tensor& src, bool non_blocking) {
   TORCH_CHECK(false, "copy_mkldnn_: ATen not compiled with MKLDNN support");
 }
 
@@ -21,7 +22,7 @@ Tensor& copy_mkldnn_(Tensor& self, const Tensor& src, bool non_blocking) {
 namespace at {
 namespace native {
 
-Tensor& copy_mkldnn_(Tensor& self, const Tensor& src, bool non_blocking) {
+Tensor& mkldnn_copy_(Tensor& self, const Tensor& src, bool non_blocking) {
   TORCH_CHECK(
       self.sizes() == src.sizes(),
       "copy_mkldnn_: only support same size tensor.");

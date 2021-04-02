@@ -2,16 +2,17 @@
 
 #include <ATen/ATen.h>
 #include <ATen/Dispatch.h>
+#include <ATen/MemoryOverlap.h>
+#include <ATen/NamedTensorUtils.h>
 #include <ATen/NativeFunctions.h>
+#include <ATen/Parallel.h>
+#include <ATen/metal/Context.h>
 #include <ATen/native/TensorIterator.h>
+#include <ATen/native/mkldnn/Copy.h>
 #include <ATen/native/quantized/Copy.h>
 #include <ATen/native/vulkan/ops/Copy.h>
 #include <ATen/quantized/Quantizer.h>
 #include <ATen/vulkan/Context.h>
-#include <ATen/metal/Context.h>
-#include <ATen/MemoryOverlap.h>
-#include <ATen/NamedTensorUtils.h>
-#include <ATen/Parallel.h>
 #include <torch/library.h>
 
 #ifdef USE_FBGEMM
@@ -171,7 +172,7 @@ static Tensor & copy_impl(Tensor & self, const Tensor & src, bool non_blocking) 
   }
 
   if (self.is_mkldnn() && src.is_mkldnn()) {
-    return at::copy_opaque_to_opaque_(self, src, non_blocking);
+    return at::native::mkldnn_copy_(self, src, non_blocking);
   } else if (self.is_mkldnn() || src.is_mkldnn()) {
     TORCH_CHECK(
         false,
